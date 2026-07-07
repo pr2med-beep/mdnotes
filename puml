@@ -1,0 +1,97 @@
+@startuml
+title Шеринг заметки
+
+autonumber
+skinparam maxMessageSize 250
+
+actor "Пользователь" as User
+participant "МП (фронт)" as FE
+participant "back-note" as BE
+database "БД" as DB
+participant "SDK Поиска" as SDK
+
+== Открытие экрана шеринга ==
+
+User -> FE : Нажимает кнопку "Шеринг"
+FE -> BE : GET /v2/notes/{noteId}/share
+BE -> DB : Получить настройки шеринга,\nтокен, владельца и пользователей
+DB --> BE : Данные шеринга
+BE --> FE : 200 OK\nТокен, владелец, пользователи
+FE --> User : Отображает Bottom Sheet шеринга
+
+== Добавление пользователя ==
+
+User -> FE : Нажимает "Добавить пользователя"
+FE -> SDK : Открыть поиск пользователей
+SDK --> User : Bottom Sheet поиска
+User -> SDK : Выбирает пользователя
+SDK --> FE : Выбранный пользователь
+
+FE -> BE : POST /notes/{noteId}/share/users/{userId}
+BE -> DB : Создать запись доступа
+DB --> BE : OK
+BE --> FE : 200 OK
+FE --> User : Добавляет пользователя\nв список участников
+
+== Изменение роли пользователя ==
+
+User -> FE : Нажимает на пользователя
+FE --> User : Показывает роли:\n• Зритель\n• Комментатор\n• Закрыть доступ\n(текущая отмечена)
+
+User -> FE : Выбирает новую роль
+
+FE -> BE : PUT /notes/{noteId}/share/users/{userId}
+BE -> DB : Обновить роль пользователя
+DB --> BE : OK
+BE --> FE : 200 OK
+FE --> User : Обновляет отображаемую роль
+
+== Закрытие доступа пользователю ==
+
+User -> FE : Нажимает на пользователя
+FE --> User : Показывает список ролей
+
+User -> FE : Выбирает "Закрыть доступ"
+
+FE -> BE : DELETE /notes/{noteId}/share/users/{userId}
+BE -> DB : Удалить запись доступа
+DB --> BE : OK
+BE --> FE : 200 OK
+FE --> User : Удаляет пользователя\nиз списка
+
+== Изменение общего доступа ==
+
+User -> FE : Нажимает поле\n"Доступ к заметке"
+
+FE --> User : Показывает варианты:\n• Только мне\n• Пользователям заметки\n• Всем, у кого есть ссылка\n(текущий отмечен)
+
+User -> FE : Выбирает вариант доступа
+FE -> BE : PUT /notes/{noteId}/share
+alt Только мне
+    FE -> BE : isActive=false\nisPublic=false
+else Пользователям заметки
+    FE -> BE : isActive=true\nisPublic=false
+else Всем, у кого есть ссылка
+    FE -> BE : isActive=true\nisPublic=true
+end
+
+BE -> DB : Обновить настройки доступа
+DB --> BE : OK
+BE --> FE : 200 OK
+FE --> User : Отображает новое\nзначение доступа
+
+== Копирование ссылки ==
+
+User -> FE : Нажимает\n"Копировать ссылку"
+
+note over FE
+Используется token,
+полученный при открытии
+экрана шеринга
+end note
+
+FE -> FE : Формирует ссылку\nscom://deeplink/notes/shared/{token}
+FE -> FE : Копирует ссылку\nв буфер обмена
+FE --> User : Показывает Snackbar\n"Ссылка скопирована"
+
+@enduml
